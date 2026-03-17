@@ -193,10 +193,10 @@ jobs:
             make_latest="true"
           else
             release_date="$(date -u +'%Y-%m-%d')"
-            release_tag="pre-$(date -u +'%Y%m%d-%H%M%S')"
-            release_name="Pre-release ${release_date}"
-            prerelease="true"
-            make_latest="false"
+            release_tag="$(date -u +'%Y%m%d-%H%M%S')"
+            release_name="Release ${release_date}"
+            prerelease="false"
+            make_latest="true"
           fi
 
           echo "tag=${release_tag}" >> "${GITHUB_OUTPUT}"
