@@ -71,6 +71,39 @@ if [[ -z "${jobs}" ]]; then
   jobs=2
 fi
 
+if [[ "${TARGET_OS}" == "linux" && -n "${HOST_TRIPLE:-}" ]]; then
+  openssl_version="${OPENSSL_VERSION:-3.3.3}"
+  openssl_prefix="${PWD}/.openssl-${TARGET_ARCH}"
+  openssl_tar="openssl-${openssl_version}.tar.gz"
+  openssl_src="openssl-${openssl_version}"
+
+  case "${TARGET_ARCH}" in
+    arm64)
+      openssl_target="linux-aarch64"
+      ;;
+    armv7l)
+      openssl_target="linux-armv4"
+      ;;
+    *)
+      echo "Unsupported linux cross SSL target: ${TARGET_ARCH}" >&2
+      exit 1
+      ;;
+  esac
+
+  if [[ ! -d "${openssl_prefix}" ]]; then
+    curl -fsSL "https://www.openssl.org/source/${openssl_tar}" -o "${openssl_tar}"
+    tar xf "${openssl_tar}"
+    pushd "${openssl_src}" >/dev/null
+    CROSS_COMPILE="${HOST_TRIPLE}-" ./Configure "${openssl_target}" \
+      no-shared no-tests no-module no-dso --prefix="${openssl_prefix}"
+    make -j"${jobs}"
+    make install_sw
+    popd >/dev/null
+  fi
+
+  export PKG_CONFIG_PATH="${openssl_prefix}/lib/pkgconfig:${openssl_prefix}/lib64/pkgconfig:${PKG_CONFIG_PATH:-}"
+fi
+
 autoreconf -i
 ./configure "${CONFIGURE_FLAGS[@]}" | tee configure.out
 
