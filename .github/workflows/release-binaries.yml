@@ -40,7 +40,9 @@ jobs:
             cxx: g++
             strip: strip
             host: ""
-            apt_packages: "autoconf automake autotools-dev autopoint libtool pkg-config make bison gcc g++"
+            apt_packages: "autoconf automake autotools-dev autopoint libtool pkg-config make bison gcc g++ libssl-dev"
+            extra_arch: ""
+            pkg_config_libdir: "/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig"
             win_arm64_alias: "false"
           - runner: ubuntu-24.04
             target_os: linux
@@ -49,7 +51,9 @@ jobs:
             cxx: aarch64-linux-gnu-g++
             strip: aarch64-linux-gnu-strip
             host: aarch64-linux-gnu
-            apt_packages: "autoconf automake autotools-dev autopoint libtool pkg-config make bison gcc-aarch64-linux-gnu g++-aarch64-linux-gnu"
+            apt_packages: "autoconf automake autotools-dev autopoint libtool pkg-config make bison gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libssl-dev:arm64"
+            extra_arch: "arm64"
+            pkg_config_libdir: "/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig"
             win_arm64_alias: "false"
           - runner: ubuntu-24.04
             target_os: linux
@@ -58,7 +62,9 @@ jobs:
             cxx: arm-linux-gnueabihf-g++
             strip: arm-linux-gnueabihf-strip
             host: arm-linux-gnueabihf
-            apt_packages: "autoconf automake autotools-dev autopoint libtool pkg-config make bison gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf"
+            apt_packages: "autoconf automake autotools-dev autopoint libtool pkg-config make bison gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf libssl-dev:armhf"
+            extra_arch: "armhf"
+            pkg_config_libdir: "/usr/lib/arm-linux-gnueabihf/pkgconfig:/usr/share/pkgconfig"
             win_arm64_alias: "false"
           - runner: ubuntu-24.04
             target_os: win
@@ -68,6 +74,8 @@ jobs:
             strip: i686-w64-mingw32-strip
             host: i686-w64-mingw32
             apt_packages: "autoconf automake autotools-dev autopoint libtool pkg-config make bison gcc-mingw-w64-i686 g++-mingw-w64-i686"
+            extra_arch: ""
+            pkg_config_libdir: "/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig"
             win_arm64_alias: "false"
           - runner: ubuntu-24.04
             target_os: win
@@ -77,6 +85,8 @@ jobs:
             strip: x86_64-w64-mingw32-strip
             host: x86_64-w64-mingw32
             apt_packages: "autoconf automake autotools-dev autopoint libtool pkg-config make bison gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64"
+            extra_arch: ""
+            pkg_config_libdir: "/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig"
             win_arm64_alias: "true"
           - runner: macos-26-intel
             target_os: darwin
@@ -86,6 +96,8 @@ jobs:
             strip: strip
             host: ""
             apt_packages: ""
+            extra_arch: ""
+            pkg_config_libdir: ""
             win_arm64_alias: "false"
           - runner: macos-26
             target_os: darwin
@@ -95,6 +107,8 @@ jobs:
             strip: strip
             host: ""
             apt_packages: ""
+            extra_arch: ""
+            pkg_config_libdir: ""
             win_arm64_alias: "false"
 
     steps:
@@ -104,6 +118,9 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           set -euo pipefail
+          if [[ -n "${{ matrix.extra_arch }}" ]]; then
+            sudo dpkg --add-architecture "${{ matrix.extra_arch }}"
+          fi
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends ${{ matrix.apt_packages }}
 
@@ -125,6 +142,7 @@ jobs:
           STRIP_BIN: ${{ matrix.strip }}
           WIN_ARM64_ALIAS: ${{ matrix.win_arm64_alias }}
           OUTPUT_DIR: ${{ github.workspace }}/dist
+          PKG_CONFIG_LIBDIR_OVERRIDE: ${{ matrix.pkg_config_libdir }}
         run: |
           set -euo pipefail
           chmod +x .github/scripts/build-release-binary.sh

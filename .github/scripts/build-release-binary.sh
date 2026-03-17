@@ -16,8 +16,6 @@ CONFIGURE_FLAGS=(
   --without-sqlite3
   --without-libssh2
   --without-libz
-  --without-openssl
-  --without-gnutls
   --without-libnettle
   --without-libgmp
   --without-libgcrypt
@@ -25,13 +23,28 @@ CONFIGURE_FLAGS=(
 
 case "${TARGET_OS}" in
   win)
-    CONFIGURE_FLAGS+=(--without-appletls)
+    CONFIGURE_FLAGS+=(
+      --with-wintls
+      --without-appletls
+      --without-openssl
+      --without-gnutls
+    )
     ;;
   darwin)
-    CONFIGURE_FLAGS+=(--without-wintls)
+    CONFIGURE_FLAGS+=(
+      --with-appletls
+      --without-wintls
+      --without-openssl
+      --without-gnutls
+    )
     ;;
   linux)
-    CONFIGURE_FLAGS+=(--without-appletls --without-wintls)
+    CONFIGURE_FLAGS+=(
+      --with-openssl
+      --without-gnutls
+      --without-appletls
+      --without-wintls
+    )
     ;;
   *)
     echo "Unsupported TARGET_OS: ${TARGET_OS}" >&2
@@ -41,6 +54,10 @@ esac
 
 if [[ -n "${HOST_TRIPLE:-}" ]]; then
   CONFIGURE_FLAGS+=("--host=${HOST_TRIPLE}")
+fi
+
+if [[ -n "${PKG_CONFIG_LIBDIR_OVERRIDE:-}" ]]; then
+  export PKG_CONFIG_LIBDIR="${PKG_CONFIG_LIBDIR_OVERRIDE}"
 fi
 
 jobs="$(getconf _NPROCESSORS_ONLN 2>/dev/null || true)"
@@ -55,7 +72,34 @@ if [[ -z "${jobs}" ]]; then
 fi
 
 autoreconf -i
-./configure "${CONFIGURE_FLAGS[@]}"
+./configure "${CONFIGURE_FLAGS[@]}" | tee configure.out
+
+if ! grep -q "SSL Support:    yes" configure.out; then
+  echo "SSL support is not enabled for ${TARGET_OS}-${TARGET_ARCH}" >&2
+  exit 1
+fi
+
+case "${TARGET_OS}" in
+  linux)
+    grep -q "OpenSSL:        yes" configure.out || {
+      echo "Expected OpenSSL backend for linux build" >&2
+      exit 1
+    }
+    ;;
+  darwin)
+    grep -q "AppleTLS:       yes" configure.out || {
+      echo "Expected AppleTLS backend for darwin build" >&2
+      exit 1
+    }
+    ;;
+  win)
+    grep -q "WinTLS:         yes" configure.out || {
+      echo "Expected WinTLS backend for win build" >&2
+      exit 1
+    }
+    ;;
+esac
+
 make -j"${jobs}"
 
 mkdir -p "${OUTPUT_DIR}"
