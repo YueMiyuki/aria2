@@ -56,15 +56,31 @@ fi
 
 autoreconf -i
 ./configure "${CONFIGURE_FLAGS[@]}"
-make -j"${jobs}" -C src aria2c
+make -j"${jobs}"
 
 mkdir -p "${OUTPUT_DIR}"
 
 if [[ "${TARGET_OS}" == "win" ]]; then
-  src_binary="src/aria2c.exe"
+  if [[ -f "src/aria2c.exe" ]]; then
+    src_binary="src/aria2c.exe"
+  elif [[ -f "src/.libs/aria2c.exe" ]]; then
+    src_binary="src/.libs/aria2c.exe"
+  else
+    echo "aria2c.exe not found after build" >&2
+    ls -la src src/.libs 2>/dev/null || true
+    exit 1
+  fi
   output_binary="${OUTPUT_DIR}/win-${TARGET_ARCH}.exe"
 else
-  src_binary="src/aria2c"
+  if [[ -f "src/.libs/aria2c" ]]; then
+    src_binary="src/.libs/aria2c"
+  elif [[ -f "src/aria2c" ]]; then
+    src_binary="src/aria2c"
+  else
+    echo "aria2c not found after build" >&2
+    ls -la src src/.libs 2>/dev/null || true
+    exit 1
+  fi
   output_binary="${OUTPUT_DIR}/${TARGET_OS}-${TARGET_ARCH}"
 fi
 

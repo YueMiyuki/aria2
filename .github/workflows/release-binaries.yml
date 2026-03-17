@@ -78,7 +78,7 @@ jobs:
             host: x86_64-w64-mingw32
             apt_packages: "autoconf automake autotools-dev autopoint libtool pkg-config make bison gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64"
             win_arm64_alias: "true"
-          - runner: macos-13
+          - runner: macos-26-intel
             target_os: darwin
             target_arch: x64
             cc: clang
@@ -87,7 +87,7 @@ jobs:
             host: ""
             apt_packages: ""
             win_arm64_alias: "false"
-          - runner: macos-14
+          - runner: macos-26
             target_os: darwin
             target_arch: arm64
             cc: clang
