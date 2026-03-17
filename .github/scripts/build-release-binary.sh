@@ -94,7 +94,8 @@ if [[ "${TARGET_OS}" == "linux" && -n "${HOST_TRIPLE:-}" ]]; then
     curl -fsSL "https://www.openssl.org/source/${openssl_tar}" -o "${openssl_tar}"
     tar xf "${openssl_tar}"
     pushd "${openssl_src}" >/dev/null
-    CROSS_COMPILE="${HOST_TRIPLE}-" ./Configure "${openssl_target}" \
+    env -u CC -u CXX ./Configure "${openssl_target}" \
+      --cross-compile-prefix="${HOST_TRIPLE}-" \
       no-shared no-tests no-module no-dso --prefix="${openssl_prefix}"
     make -j"${jobs}"
     make install_sw
