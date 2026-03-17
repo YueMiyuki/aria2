@@ -1,0 +1,43 @@
+name: sync-upstream
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Sync default branch and tags from upstream
+        env:
+          UPSTREAM_REPOSITORY: aria2/aria2
+        run: |
+          set -euo pipefail
+
+          upstream_url="https://github.com/${UPSTREAM_REPOSITORY}.git"
+          if git remote get-url upstream >/dev/null 2>&1; then
+            git remote set-url upstream "${upstream_url}"
+          else
+            git remote add upstream "${upstream_url}"
+          fi
+
+          default_branch="$(git ls-remote --symref "${upstream_url}" HEAD | awk '/^ref:/ {sub("refs/heads/","",$2); print $2}')"
+          if [[ -z "${default_branch}" ]]; then
+            echo "Failed to detect upstream default branch."
+            exit 1
+          fi
+
+          git fetch upstream --prune --tags "+refs/heads/*:refs/remotes/upstream/*"
+          git push origin "refs/remotes/upstream/${default_branch}:refs/heads/${default_branch}" --force
+          git push origin --tags
+
+          echo "Synced ${default_branch} and tags from ${UPSTREAM_REPOSITORY}"
