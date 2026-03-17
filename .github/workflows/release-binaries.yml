@@ -131,7 +131,7 @@ jobs:
           .github/scripts/build-release-binary.sh
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.target_os }}-${{ matrix.target_arch }}
           path: dist/*
@@ -145,15 +145,15 @@ jobs:
       contents: write
 
     steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v5
-        with:
-          path: release-assets
-          merge-multiple: true
-
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: release-assets
+          merge-multiple: true
 
       - name: Prepare release metadata
         id: meta
@@ -211,6 +211,11 @@ jobs:
           RELEASE_PRERELEASE: ${{ steps.meta.outputs.prerelease }}
         run: |
           set -euo pipefail
+          mkdir -p release-assets
+          if ! find release-assets -maxdepth 1 -type f | grep -q .; then
+            echo "No release artifacts were downloaded."
+            exit 1
+          fi
           manifest_file="release-assets/latest.json"
           repo_url="https://github.com/${GITHUB_REPOSITORY}"
           published_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
