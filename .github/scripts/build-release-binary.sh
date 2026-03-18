@@ -8,14 +8,14 @@ set -euo pipefail
 CONFIGURE_FLAGS=(
   --disable-nls
   --enable-bittorrent
-  --disable-metalink
+  --enable-metalink
   --enable-websocket
-  --without-libcares
+  --with-libcares
   --with-sqlite3
   --with-libssh2
   --without-libxml2
-  --without-libexpat
-  --without-libz
+  --with-libexpat
+  --with-libz
 )
 
 case "${TARGET_OS}" in
@@ -33,7 +33,9 @@ case "${TARGET_OS}" in
     ;;
 esac
 
+is_cross=false
 if [[ -n "${HOST_TRIPLE:-}" ]]; then
+  is_cross=true
   CONFIGURE_FLAGS+=("--host=${HOST_TRIPLE}")
 fi
 
@@ -58,12 +60,20 @@ if [[ -z "${jobs}" ]]; then
   jobs=2
 fi
 
-if [[ -n "${HOST_TRIPLE:-}" ]]; then
+if [[ "${BUNDLE_DEPS:-true}" == "true" ]]; then
   dep_prefix="${PWD}/.crossdeps-${TARGET_OS}-${TARGET_ARCH}"
   dep_build="${PWD}/.crossdeps-build-${TARGET_OS}-${TARGET_ARCH}"
   mkdir -p "${dep_prefix}" "${dep_build}"
 
-  build_machine="$(gcc -dumpmachine 2>/dev/null || echo x86_64-linux-gnu)"
+  build_machine="$( (cc -dumpmachine 2>/dev/null || gcc -dumpmachine 2>/dev/null) || true )"
+  if [[ -z "${build_machine}" ]]; then
+    build_machine="$(uname -m)-$(uname -s | tr '[:upper:]' '[:lower:]')"
+  fi
+
+  host_args=()
+  if [[ "${is_cross}" == "true" ]]; then
+    host_args=(--host="${HOST_TRIPLE}" --build="${build_machine}")
+  fi
 
   fetch_extract() {
     local url="$1"
@@ -87,8 +97,12 @@ if [[ -n "${HOST_TRIPLE:-}" ]]; then
     fi
     fetch_extract "https://github.com/madler/zlib/releases/download/v${version}/${src}.tar.gz" "${src}.tar.gz" "${src}"
     pushd "${dep_build}/${src}" >/dev/null
-    CC="${HOST_TRIPLE}-gcc" AR="${HOST_TRIPLE}-ar" RANLIB="${HOST_TRIPLE}-ranlib" \
+    if [[ "${is_cross}" == "true" ]]; then
+      CC="${HOST_TRIPLE}-gcc" AR="${HOST_TRIPLE}-ar" RANLIB="${HOST_TRIPLE}-ranlib" \
+        ./configure --prefix="${dep_prefix}" --static
+    else
       ./configure --prefix="${dep_prefix}" --static
+    fi
     make -j"${jobs}"
     make install
     popd >/dev/null
@@ -102,8 +116,27 @@ if [[ -n "${HOST_TRIPLE:-}" ]]; then
     fi
     fetch_extract "https://github.com/libexpat/libexpat/releases/download/R_$(echo "${version}" | tr . _)/${src}.tar.xz" "${src}.tar.xz" "${src}"
     pushd "${dep_build}/${src}" >/dev/null
-    ./configure --host="${HOST_TRIPLE}" --build="${build_machine}" \
+    ./configure "${host_args[@]}" \
       --disable-shared --enable-static --prefix="${dep_prefix}"
+    make -j"${jobs}"
+    make install
+    popd >/dev/null
+  }
+
+  build_cares() {
+    local version="1.34.6"
+    local src="c-ares-${version}"
+    if [[ -f "${dep_prefix}/lib/libcares.a" ]]; then
+      return
+    fi
+    fetch_extract "https://github.com/c-ares/c-ares/releases/download/v${version}/${src}.tar.gz" "${src}.tar.gz" "${src}"
+    pushd "${dep_build}/${src}" >/dev/null
+    local extra=()
+    if [[ "${TARGET_OS}" == "win" ]]; then
+      extra+=(LIBS="-lws2_32")
+    fi
+    ./configure "${host_args[@]}" \
+      --disable-shared --enable-static --without-random --prefix="${dep_prefix}" "${extra[@]}"
     make -j"${jobs}"
     make install
     popd >/dev/null
@@ -117,7 +150,7 @@ if [[ -n "${HOST_TRIPLE:-}" ]]; then
     fi
     fetch_extract "https://www.sqlite.org/2025/${src}.tar.gz" "${src}.tar.gz" "${src}"
     pushd "${dep_build}/${src}" >/dev/null
-    ./configure --host="${HOST_TRIPLE}" --build="${build_machine}" \
+    ./configure "${host_args[@]}" \
       --disable-shared --enable-static --prefix="${dep_prefix}"
     make -j"${jobs}"
     make install
@@ -133,8 +166,11 @@ if [[ -n "${HOST_TRIPLE:-}" ]]; then
 
     local openssl_target=""
     case "${TARGET_OS}-${TARGET_ARCH}" in
+      linux-x64) openssl_target="linux-x86_64" ;;
       linux-arm64) openssl_target="linux-aarch64" ;;
       linux-armv7l) openssl_target="linux-armv4" ;;
+      darwin-x64) openssl_target="darwin64-x86_64-cc" ;;
+      darwin-arm64) openssl_target="darwin64-arm64-cc" ;;
       win-ia32) openssl_target="mingw" ;;
       win-x64) openssl_target="mingw64" ;;
       *)
@@ -145,9 +181,14 @@ if [[ -n "${HOST_TRIPLE:-}" ]]; then
 
     fetch_extract "https://www.openssl.org/source/${src}.tar.gz" "${src}.tar.gz" "${src}"
     pushd "${dep_build}/${src}" >/dev/null
-    env -u CC -u CXX ./Configure "${openssl_target}" \
-      --cross-compile-prefix="${HOST_TRIPLE}-" \
-      no-shared no-tests no-module no-dso --prefix="${dep_prefix}"
+    if [[ "${is_cross}" == "true" ]]; then
+      env -u CC -u CXX ./Configure "${openssl_target}" \
+        --cross-compile-prefix="${HOST_TRIPLE}-" \
+        no-shared no-tests no-module no-dso --prefix="${dep_prefix}"
+    else
+      env -u CC -u CXX ./Configure "${openssl_target}" \
+        no-shared no-tests no-module no-dso --prefix="${dep_prefix}"
+    fi
     make -j"${jobs}"
     make install_sw
     popd >/dev/null
@@ -177,7 +218,7 @@ if [[ -n "${HOST_TRIPLE:-}" ]]; then
     fi
     PKG_CONFIG_PATH="${dep_prefix}/lib/pkgconfig:${dep_prefix}/lib64/pkgconfig" \
     CPPFLAGS="-I${dep_prefix}/include" LDFLAGS="-L${dep_prefix}/lib -L${dep_prefix}/lib64" \
-      ./configure --host="${HOST_TRIPLE}" --build="${build_machine}" \
+    ./configure "${host_args[@]}" \
       --disable-shared --enable-static --disable-examples-build \
       --with-openssl --with-libz --prefix="${dep_prefix}" LIBS="${extra_libs}"
     make -C src -j"${jobs}"
@@ -211,6 +252,7 @@ PC
 
   build_zlib
   build_expat
+  build_cares
   build_sqlite
   build_openssl
   build_libssh2
@@ -233,34 +275,19 @@ grep -q "OpenSSL:        yes" configure.out || {
   exit 1
 }
 
-for feat in Bittorrent WebSocket; do
+for feat in Bittorrent Metalink WebSocket; do
   if ! grep -Eq "^${feat}:[[:space:]]+yes" configure.out; then
     echo "Expected feature '${feat}' to be enabled for ${TARGET_OS}-${TARGET_ARCH}" >&2
     exit 1
   fi
 done
 
-if grep -Eq "^Metalink:[[:space:]]+yes" configure.out; then
-  echo "Metalink must be disabled for ${TARGET_OS}-${TARGET_ARCH}" >&2
-  exit 1
-fi
-
-for dep in "Libssh2" "SQLite3"; do
+for dep in "LibCares" "Libssh2" "SQLite3" "LibExpat" "Zlib"; do
   if ! grep -Eq "^${dep}:[[:space:]]+yes" configure.out; then
     echo "Expected dependency feature '${dep}' to be enabled for ${TARGET_OS}-${TARGET_ARCH}" >&2
     exit 1
   fi
 done
-
-if grep -Eq "^LibCares:[[:space:]]+yes" configure.out; then
-  echo "LibCares must be disabled for ${TARGET_OS}-${TARGET_ARCH}" >&2
-  exit 1
-fi
-
-if grep -Eq "^Zlib:[[:space:]]+yes" configure.out; then
-  echo "Zlib must be disabled for ${TARGET_OS}-${TARGET_ARCH}" >&2
-  exit 1
-fi
 
 make -j"${jobs}"
 
