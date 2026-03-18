@@ -41,6 +41,12 @@ if [[ "${TARGET_OS}" == "darwin" ]]; then
   export LDFLAGS="${LDFLAGS:-} -framework Security -framework CoreFoundation"
 fi
 
+if [[ "${TARGET_OS}" == "win" ]]; then
+  # Static OpenSSL/libssh2 on MinGW needs explicit Windows system libs.
+  win_system_libs="-lws2_32 -lcrypt32 -lbcrypt -liphlpapi"
+  export LIBS="${LIBS:-} ${win_system_libs}"
+fi
+
 jobs="$(getconf _NPROCESSORS_ONLN 2>/dev/null || true)"
 if [[ -z "${jobs}" ]]; then
   jobs="$(nproc 2>/dev/null || true)"
