@@ -100,6 +100,18 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Restore cross dependency cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            .crossdeps-*
+            .crossdeps-build-*/*.tar.gz
+            .crossdeps-build-*/*.tar.xz
+            .crossdeps-build-*/*.tar.bz2
+          key: crossdeps-${{ matrix.target_os }}-${{ matrix.target_arch }}-${{ hashFiles('.github/scripts/build-release-binary.sh') }}
+          restore-keys: |
+            crossdeps-${{ matrix.target_os }}-${{ matrix.target_arch }}-
+
       - name: Install Linux build dependencies
         if: runner.os == 'Linux'
         run: |

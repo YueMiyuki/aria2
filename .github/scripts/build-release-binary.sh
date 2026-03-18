@@ -100,12 +100,12 @@ if [[ -n "${HOST_TRIPLE:-}" ]]; then
   }
 
   build_cares() {
-    local version="1.34.5"
+    local version="1.34.6"
     local src="c-ares-${version}"
     if [[ -f "${dep_prefix}/lib/libcares.a" ]]; then
       return
     fi
-    fetch_extract "https://github.com/c-ares/c-ares/releases/download/cares-$(echo "${version}" | tr . _)/${src}.tar.gz" "${src}.tar.gz" "${src}"
+    fetch_extract "https://github.com/c-ares/c-ares/releases/download/v${version}/${src}.tar.gz" "${src}.tar.gz" "${src}"
     pushd "${dep_build}/${src}" >/dev/null
     local extra=()
     if [[ "${TARGET_OS}" == "win" ]]; then
