@@ -10,7 +10,7 @@ CONFIGURE_FLAGS=(
   --enable-bittorrent
   --disable-metalink
   --enable-websocket
-  --with-libcares
+  --without-libcares
   --with-sqlite3
   --with-libssh2
   --without-libxml2
@@ -104,25 +104,6 @@ if [[ -n "${HOST_TRIPLE:-}" ]]; then
     pushd "${dep_build}/${src}" >/dev/null
     ./configure --host="${HOST_TRIPLE}" --build="${build_machine}" \
       --disable-shared --enable-static --prefix="${dep_prefix}"
-    make -j"${jobs}"
-    make install
-    popd >/dev/null
-  }
-
-  build_cares() {
-    local version="1.34.6"
-    local src="c-ares-${version}"
-    if [[ -f "${dep_prefix}/lib/libcares.a" ]]; then
-      return
-    fi
-    fetch_extract "https://github.com/c-ares/c-ares/releases/download/v${version}/${src}.tar.gz" "${src}.tar.gz" "${src}"
-    pushd "${dep_build}/${src}" >/dev/null
-    local extra=()
-    if [[ "${TARGET_OS}" == "win" ]]; then
-      extra+=(LIBS="-lws2_32")
-    fi
-    ./configure --host="${HOST_TRIPLE}" --build="${build_machine}" \
-      --disable-shared --enable-static --without-random --prefix="${dep_prefix}" "${extra[@]}"
     make -j"${jobs}"
     make install
     popd >/dev/null
@@ -230,7 +211,6 @@ PC
 
   build_zlib
   build_expat
-  build_cares
   build_sqlite
   build_openssl
   build_libssh2
@@ -265,12 +245,17 @@ if grep -Eq "^Metalink:[[:space:]]+yes" configure.out; then
   exit 1
 fi
 
-for dep in "LibCares" "Libssh2" "SQLite3"; do
+for dep in "Libssh2" "SQLite3"; do
   if ! grep -Eq "^${dep}:[[:space:]]+yes" configure.out; then
     echo "Expected dependency feature '${dep}' to be enabled for ${TARGET_OS}-${TARGET_ARCH}" >&2
     exit 1
   fi
 done
+
+if grep -Eq "^LibCares:[[:space:]]+yes" configure.out; then
+  echo "LibCares must be disabled for ${TARGET_OS}-${TARGET_ARCH}" >&2
+  exit 1
+fi
 
 if grep -Eq "^Zlib:[[:space:]]+yes" configure.out; then
   echo "Zlib must be disabled for ${TARGET_OS}-${TARGET_ARCH}" >&2
