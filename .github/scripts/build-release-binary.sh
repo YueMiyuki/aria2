@@ -169,7 +169,17 @@ if [[ -n "${HOST_TRIPLE:-}" ]]; then
   build_libssh2() {
     local version="1.11.1"
     local src="libssh2-${version}"
+    local libssh2_lib=""
     if [[ -f "${dep_prefix}/lib/libssh2.a" ]]; then
+      libssh2_lib="${dep_prefix}/lib/libssh2.a"
+    elif [[ -f "${dep_prefix}/lib64/libssh2.a" ]]; then
+      libssh2_lib="${dep_prefix}/lib64/libssh2.a"
+    fi
+
+    if [[ -n "${libssh2_lib}" && \
+      -f "${dep_prefix}/include/libssh2.h" && \
+      -f "${dep_prefix}/include/libssh2_sftp.h" && \
+      -f "${dep_prefix}/lib/pkgconfig/libssh2.pc" ]]; then
       return
     fi
     fetch_extract "https://www.libssh2.org/download/${src}.tar.gz" "${src}.tar.gz" "${src}"
@@ -187,11 +197,8 @@ if [[ -n "${HOST_TRIPLE:-}" ]]; then
     make -C src install
 
     mkdir -p "${dep_prefix}/include" "${dep_prefix}/lib/pkgconfig"
-    if [[ -f include/libssh2.h ]]; then
-      cp include/libssh2.h "${dep_prefix}/include/"
-    fi
-    if [[ -f include/libssh2_publickey.h ]]; then
-      cp include/libssh2_publickey.h "${dep_prefix}/include/"
+    if compgen -G "include/libssh2*.h" >/dev/null; then
+      cp include/libssh2*.h "${dep_prefix}/include/"
     fi
 
     local libdir="${dep_prefix}/lib"
