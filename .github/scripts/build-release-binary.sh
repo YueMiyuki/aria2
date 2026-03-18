@@ -174,12 +174,17 @@ if [[ -n "${HOST_TRIPLE:-}" ]]; then
     fi
     fetch_extract "https://www.libssh2.org/download/${src}.tar.gz" "${src}.tar.gz" "${src}"
     pushd "${dep_build}/${src}" >/dev/null
+    local extra_libs=""
+    if [[ "${TARGET_OS}" == "win" ]]; then
+      extra_libs="-lws2_32 -lcrypt32"
+    fi
     PKG_CONFIG_PATH="${dep_prefix}/lib/pkgconfig:${dep_prefix}/lib64/pkgconfig" \
     CPPFLAGS="-I${dep_prefix}/include" LDFLAGS="-L${dep_prefix}/lib -L${dep_prefix}/lib64" \
       ./configure --host="${HOST_TRIPLE}" --build="${build_machine}" \
-      --disable-shared --enable-static --with-openssl --with-libz --prefix="${dep_prefix}"
-    make -j"${jobs}"
-    make install
+      --disable-shared --enable-static --disable-examples-build \
+      --with-openssl --with-libz --prefix="${dep_prefix}" LIBS="${extra_libs}"
+    make -C src -j"${jobs}"
+    make -C src install
     popd >/dev/null
   }
 
