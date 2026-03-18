@@ -37,6 +37,10 @@ if [[ -n "${HOST_TRIPLE:-}" ]]; then
   CONFIGURE_FLAGS+=("--host=${HOST_TRIPLE}")
 fi
 
+if [[ "${TARGET_OS}" == "darwin" ]]; then
+  export LDFLAGS="${LDFLAGS:-} -framework Security -framework CoreFoundation"
+fi
+
 jobs="$(getconf _NPROCESSORS_ONLN 2>/dev/null || true)"
 if [[ -z "${jobs}" ]]; then
   jobs="$(nproc 2>/dev/null || true)"

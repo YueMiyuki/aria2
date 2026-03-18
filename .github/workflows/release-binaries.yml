@@ -40,7 +40,7 @@ jobs:
             cxx: g++
             strip: strip
             host: ""
-            apt_packages: "autoconf automake autotools-dev autopoint libtool pkg-config make bison gcc g++ libssl-dev libexpat1-dev zlib1g-dev"
+            apt_packages: "autoconf automake autotools-dev autopoint libtool pkg-config make bison gcc g++ libssl-dev libexpat1-dev zlib1g-dev libc-ares-dev libsqlite3-dev libssh2-1-dev"
             win_arm64_alias: "false"
           - runner: ubuntu-24.04
             target_os: linux
