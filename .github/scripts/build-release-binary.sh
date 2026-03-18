@@ -134,12 +134,13 @@ if [[ "${BUNDLE_DEPS:-true}" == "true" ]]; then
     fi
     fetch_extract "https://github.com/c-ares/c-ares/releases/download/v${version}/${src}.tar.gz" "${src}.tar.gz" "${src}"
     pushd "${dep_build}/${src}" >/dev/null
-    local extra=()
     if [[ "${TARGET_OS}" == "win" ]]; then
-      extra+=(LIBS="-lws2_32")
+      run_configure \
+        --disable-shared --enable-static --without-random --prefix="${dep_prefix}" LIBS="-lws2_32"
+    else
+      run_configure \
+        --disable-shared --enable-static --without-random --prefix="${dep_prefix}"
     fi
-    run_configure \
-      --disable-shared --enable-static --without-random --prefix="${dep_prefix}" "${extra[@]}"
     make -j"${jobs}"
     make install
     popd >/dev/null
