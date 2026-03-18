@@ -15,7 +15,7 @@ CONFIGURE_FLAGS=(
   --with-libssh2
   --without-libxml2
   --with-libexpat
-  --with-libz
+  --without-libz
 )
 
 case "${TARGET_OS}" in
@@ -260,12 +260,17 @@ for feat in Bittorrent Metalink WebSocket; do
   fi
 done
 
-for dep in "LibCares" "Libssh2" "SQLite3" "Zlib"; do
+for dep in "LibCares" "Libssh2" "SQLite3"; do
   if ! grep -Eq "^${dep}:[[:space:]]+yes" configure.out; then
     echo "Expected dependency feature '${dep}' to be enabled for ${TARGET_OS}-${TARGET_ARCH}" >&2
     exit 1
   fi
 done
+
+if grep -Eq "^Zlib:[[:space:]]+yes" configure.out; then
+  echo "Zlib must be disabled for ${TARGET_OS}-${TARGET_ARCH}" >&2
+  exit 1
+fi
 
 make -j"${jobs}"
 
