@@ -8,13 +8,13 @@ set -euo pipefail
 CONFIGURE_FLAGS=(
   --disable-nls
   --enable-bittorrent
-  --enable-metalink
+  --disable-metalink
   --enable-websocket
   --with-libcares
   --with-sqlite3
   --with-libssh2
   --without-libxml2
-  --with-libexpat
+  --without-libexpat
   --without-libz
 )
 
@@ -253,12 +253,17 @@ grep -q "OpenSSL:        yes" configure.out || {
   exit 1
 }
 
-for feat in Bittorrent Metalink WebSocket; do
+for feat in Bittorrent WebSocket; do
   if ! grep -Eq "^${feat}:[[:space:]]+yes" configure.out; then
     echo "Expected feature '${feat}' to be enabled for ${TARGET_OS}-${TARGET_ARCH}" >&2
     exit 1
   fi
 done
+
+if grep -Eq "^Metalink:[[:space:]]+yes" configure.out; then
+  echo "Metalink must be disabled for ${TARGET_OS}-${TARGET_ARCH}" >&2
+  exit 1
+fi
 
 for dep in "LibCares" "Libssh2" "SQLite3"; do
   if ! grep -Eq "^${dep}:[[:space:]]+yes" configure.out; then
