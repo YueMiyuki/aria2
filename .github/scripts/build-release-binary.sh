@@ -7,38 +7,19 @@ set -euo pipefail
 
 CONFIGURE_FLAGS=(
   --disable-nls
-  --disable-bittorrent
-  --disable-metalink
-  --disable-websocket
+  --enable-bittorrent
+  --enable-metalink
+  --enable-websocket
+  --with-libcares
+  --with-sqlite3
+  --with-libssh2
   --without-libxml2
-  --without-libexpat
-  --without-libcares
-  --without-sqlite3
-  --without-libssh2
-  --without-libz
-  --without-libnettle
-  --without-libgmp
-  --without-libgcrypt
+  --with-libexpat
+  --with-libz
 )
 
 case "${TARGET_OS}" in
-  win)
-    CONFIGURE_FLAGS+=(
-      --with-wintls
-      --without-appletls
-      --without-openssl
-      --without-gnutls
-    )
-    ;;
-  darwin)
-    CONFIGURE_FLAGS+=(
-      --with-appletls
-      --without-wintls
-      --without-openssl
-      --without-gnutls
-    )
-    ;;
-  linux)
+  linux|darwin|win)
     CONFIGURE_FLAGS+=(
       --with-openssl
       --without-gnutls
@@ -56,10 +37,6 @@ if [[ -n "${HOST_TRIPLE:-}" ]]; then
   CONFIGURE_FLAGS+=("--host=${HOST_TRIPLE}")
 fi
 
-if [[ -n "${PKG_CONFIG_LIBDIR_OVERRIDE:-}" ]]; then
-  export PKG_CONFIG_LIBDIR="${PKG_CONFIG_LIBDIR_OVERRIDE}"
-fi
-
 jobs="$(getconf _NPROCESSORS_ONLN 2>/dev/null || true)"
 if [[ -z "${jobs}" ]]; then
   jobs="$(nproc 2>/dev/null || true)"
@@ -71,38 +48,147 @@ if [[ -z "${jobs}" ]]; then
   jobs=2
 fi
 
-if [[ "${TARGET_OS}" == "linux" && -n "${HOST_TRIPLE:-}" ]]; then
-  openssl_version="${OPENSSL_VERSION:-3.3.3}"
-  openssl_prefix="${PWD}/.openssl-${TARGET_ARCH}"
-  openssl_tar="openssl-${openssl_version}.tar.gz"
-  openssl_src="openssl-${openssl_version}"
+if [[ -n "${HOST_TRIPLE:-}" ]]; then
+  dep_prefix="${PWD}/.crossdeps-${TARGET_OS}-${TARGET_ARCH}"
+  dep_build="${PWD}/.crossdeps-build-${TARGET_OS}-${TARGET_ARCH}"
+  mkdir -p "${dep_prefix}" "${dep_build}"
 
-  case "${TARGET_ARCH}" in
-    arm64)
-      openssl_target="linux-aarch64"
-      ;;
-    armv7l)
-      openssl_target="linux-armv4"
-      ;;
-    *)
-      echo "Unsupported linux cross SSL target: ${TARGET_ARCH}" >&2
-      exit 1
-      ;;
-  esac
+  build_machine="$(gcc -dumpmachine 2>/dev/null || echo x86_64-linux-gnu)"
 
-  if [[ ! -d "${openssl_prefix}" ]]; then
-    curl -fsSL "https://www.openssl.org/source/${openssl_tar}" -o "${openssl_tar}"
-    tar xf "${openssl_tar}"
-    pushd "${openssl_src}" >/dev/null
+  fetch_extract() {
+    local url="$1"
+    local tarball="$2"
+    local src_dir="$3"
+
+    pushd "${dep_build}" >/dev/null
+    if [[ ! -f "${tarball}" ]]; then
+      curl -fsSL "${url}" -o "${tarball}"
+    fi
+    rm -rf "${src_dir}"
+    tar xf "${tarball}"
+    popd >/dev/null
+  }
+
+  build_zlib() {
+    local version="1.3.1"
+    local src="zlib-${version}"
+    if [[ -f "${dep_prefix}/lib/libz.a" ]]; then
+      return
+    fi
+    fetch_extract "https://github.com/madler/zlib/releases/download/v${version}/${src}.tar.gz" "${src}.tar.gz" "${src}"
+    pushd "${dep_build}/${src}" >/dev/null
+    CC="${HOST_TRIPLE}-gcc" AR="${HOST_TRIPLE}-ar" RANLIB="${HOST_TRIPLE}-ranlib" \
+      ./configure --prefix="${dep_prefix}" --static
+    make -j"${jobs}"
+    make install
+    popd >/dev/null
+  }
+
+  build_expat() {
+    local version="2.7.3"
+    local src="expat-${version}"
+    if [[ -f "${dep_prefix}/lib/libexpat.a" ]]; then
+      return
+    fi
+    fetch_extract "https://github.com/libexpat/libexpat/releases/download/R_$(echo "${version}" | tr . _)/${src}.tar.xz" "${src}.tar.xz" "${src}"
+    pushd "${dep_build}/${src}" >/dev/null
+    ./configure --host="${HOST_TRIPLE}" --build="${build_machine}" \
+      --disable-shared --enable-static --prefix="${dep_prefix}"
+    make -j"${jobs}"
+    make install
+    popd >/dev/null
+  }
+
+  build_cares() {
+    local version="1.34.5"
+    local src="c-ares-${version}"
+    if [[ -f "${dep_prefix}/lib/libcares.a" ]]; then
+      return
+    fi
+    fetch_extract "https://github.com/c-ares/c-ares/releases/download/cares-$(echo "${version}" | tr . _)/${src}.tar.gz" "${src}.tar.gz" "${src}"
+    pushd "${dep_build}/${src}" >/dev/null
+    local extra=()
+    if [[ "${TARGET_OS}" == "win" ]]; then
+      extra+=(LIBS="-lws2_32")
+    fi
+    ./configure --host="${HOST_TRIPLE}" --build="${build_machine}" \
+      --disable-shared --enable-static --without-random --prefix="${dep_prefix}" "${extra[@]}"
+    make -j"${jobs}"
+    make install
+    popd >/dev/null
+  }
+
+  build_sqlite() {
+    local version="3500400"
+    local src="sqlite-autoconf-${version}"
+    if [[ -f "${dep_prefix}/lib/libsqlite3.a" ]]; then
+      return
+    fi
+    fetch_extract "https://www.sqlite.org/2025/${src}.tar.gz" "${src}.tar.gz" "${src}"
+    pushd "${dep_build}/${src}" >/dev/null
+    ./configure --host="${HOST_TRIPLE}" --build="${build_machine}" \
+      --disable-shared --enable-static --prefix="${dep_prefix}"
+    make -j"${jobs}"
+    make install
+    popd >/dev/null
+  }
+
+  build_openssl() {
+    local version="3.3.3"
+    local src="openssl-${version}"
+    if [[ -f "${dep_prefix}/lib/libssl.a" ]]; then
+      return
+    fi
+
+    local openssl_target=""
+    case "${TARGET_OS}-${TARGET_ARCH}" in
+      linux-arm64) openssl_target="linux-aarch64" ;;
+      linux-armv7l) openssl_target="linux-armv4" ;;
+      win-ia32) openssl_target="mingw" ;;
+      win-x64) openssl_target="mingw64" ;;
+      *)
+        echo "Unsupported OpenSSL cross target: ${TARGET_OS}-${TARGET_ARCH}" >&2
+        exit 1
+        ;;
+    esac
+
+    fetch_extract "https://www.openssl.org/source/${src}.tar.gz" "${src}.tar.gz" "${src}"
+    pushd "${dep_build}/${src}" >/dev/null
     env -u CC -u CXX ./Configure "${openssl_target}" \
       --cross-compile-prefix="${HOST_TRIPLE}-" \
-      no-shared no-tests no-module no-dso --prefix="${openssl_prefix}"
+      no-shared no-tests no-module no-dso --prefix="${dep_prefix}"
     make -j"${jobs}"
     make install_sw
     popd >/dev/null
-  fi
+  }
 
-  export PKG_CONFIG_PATH="${openssl_prefix}/lib/pkgconfig:${openssl_prefix}/lib64/pkgconfig:${PKG_CONFIG_PATH:-}"
+  build_libssh2() {
+    local version="1.11.1"
+    local src="libssh2-${version}"
+    if [[ -f "${dep_prefix}/lib/libssh2.a" ]]; then
+      return
+    fi
+    fetch_extract "https://www.libssh2.org/download/${src}.tar.gz" "${src}.tar.gz" "${src}"
+    pushd "${dep_build}/${src}" >/dev/null
+    PKG_CONFIG_PATH="${dep_prefix}/lib/pkgconfig:${dep_prefix}/lib64/pkgconfig" \
+    CPPFLAGS="-I${dep_prefix}/include" LDFLAGS="-L${dep_prefix}/lib -L${dep_prefix}/lib64" \
+      ./configure --host="${HOST_TRIPLE}" --build="${build_machine}" \
+      --disable-shared --enable-static --with-openssl --with-libz --prefix="${dep_prefix}"
+    make -j"${jobs}"
+    make install
+    popd >/dev/null
+  }
+
+  build_zlib
+  build_expat
+  build_cares
+  build_sqlite
+  build_openssl
+  build_libssh2
+
+  export CPPFLAGS="-I${dep_prefix}/include ${CPPFLAGS:-}"
+  export LDFLAGS="-L${dep_prefix}/lib -L${dep_prefix}/lib64 ${LDFLAGS:-}"
+  export PKG_CONFIG_PATH="${dep_prefix}/lib/pkgconfig:${dep_prefix}/lib64/pkgconfig:${PKG_CONFIG_PATH:-}"
 fi
 
 autoreconf -i
@@ -113,26 +199,24 @@ if ! grep -q "SSL Support:    yes" configure.out; then
   exit 1
 fi
 
-case "${TARGET_OS}" in
-  linux)
-    grep -q "OpenSSL:        yes" configure.out || {
-      echo "Expected OpenSSL backend for linux build" >&2
-      exit 1
-    }
-    ;;
-  darwin)
-    grep -q "AppleTLS:       yes" configure.out || {
-      echo "Expected AppleTLS backend for darwin build" >&2
-      exit 1
-    }
-    ;;
-  win)
-    grep -q "WinTLS:         yes" configure.out || {
-      echo "Expected WinTLS backend for win build" >&2
-      exit 1
-    }
-    ;;
-esac
+grep -q "OpenSSL:        yes" configure.out || {
+  echo "Expected OpenSSL backend for ${TARGET_OS}-${TARGET_ARCH}" >&2
+  exit 1
+}
+
+for feat in Bittorrent Metalink WebSocket; do
+  if ! grep -Eq "^${feat}:[[:space:]]+yes" configure.out; then
+    echo "Expected feature '${feat}' to be enabled for ${TARGET_OS}-${TARGET_ARCH}" >&2
+    exit 1
+  fi
+done
+
+for dep in "LibCares" "Libssh2" "SQLite3" "Zlib"; do
+  if ! grep -Eq "^${dep}:[[:space:]]+yes" configure.out; then
+    echo "Expected dependency feature '${dep}' to be enabled for ${TARGET_OS}-${TARGET_ARCH}" >&2
+    exit 1
+  fi
+done
 
 make -j"${jobs}"
 
