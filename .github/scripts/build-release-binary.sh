@@ -70,10 +70,13 @@ if [[ "${BUNDLE_DEPS:-true}" == "true" ]]; then
     build_machine="$(uname -m)-$(uname -s | tr '[:upper:]' '[:lower:]')"
   fi
 
-  host_args=()
-  if [[ "${is_cross}" == "true" ]]; then
-    host_args=(--host="${HOST_TRIPLE}" --build="${build_machine}")
-  fi
+  run_configure() {
+    if [[ "${is_cross}" == "true" ]]; then
+      ./configure --host="${HOST_TRIPLE}" --build="${build_machine}" "$@"
+    else
+      ./configure "$@"
+    fi
+  }
 
   fetch_extract() {
     local url="$1"
@@ -116,7 +119,7 @@ if [[ "${BUNDLE_DEPS:-true}" == "true" ]]; then
     fi
     fetch_extract "https://github.com/libexpat/libexpat/releases/download/R_$(echo "${version}" | tr . _)/${src}.tar.xz" "${src}.tar.xz" "${src}"
     pushd "${dep_build}/${src}" >/dev/null
-    ./configure "${host_args[@]}" \
+    run_configure \
       --disable-shared --enable-static --prefix="${dep_prefix}"
     make -j"${jobs}"
     make install
@@ -135,7 +138,7 @@ if [[ "${BUNDLE_DEPS:-true}" == "true" ]]; then
     if [[ "${TARGET_OS}" == "win" ]]; then
       extra+=(LIBS="-lws2_32")
     fi
-    ./configure "${host_args[@]}" \
+    run_configure \
       --disable-shared --enable-static --without-random --prefix="${dep_prefix}" "${extra[@]}"
     make -j"${jobs}"
     make install
@@ -150,7 +153,7 @@ if [[ "${BUNDLE_DEPS:-true}" == "true" ]]; then
     fi
     fetch_extract "https://www.sqlite.org/2025/${src}.tar.gz" "${src}.tar.gz" "${src}"
     pushd "${dep_build}/${src}" >/dev/null
-    ./configure "${host_args[@]}" \
+    run_configure \
       --disable-shared --enable-static --prefix="${dep_prefix}"
     make -j"${jobs}"
     make install
@@ -218,7 +221,7 @@ if [[ "${BUNDLE_DEPS:-true}" == "true" ]]; then
     fi
     PKG_CONFIG_PATH="${dep_prefix}/lib/pkgconfig:${dep_prefix}/lib64/pkgconfig" \
     CPPFLAGS="-I${dep_prefix}/include" LDFLAGS="-L${dep_prefix}/lib -L${dep_prefix}/lib64" \
-    ./configure "${host_args[@]}" \
+    run_configure \
       --disable-shared --enable-static --disable-examples-build \
       --with-openssl --with-libz --prefix="${dep_prefix}" LIBS="${extra_libs}"
     make -C src -j"${jobs}"
