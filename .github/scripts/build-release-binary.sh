@@ -185,6 +185,33 @@ if [[ -n "${HOST_TRIPLE:-}" ]]; then
       --with-openssl --with-libz --prefix="${dep_prefix}" LIBS="${extra_libs}"
     make -C src -j"${jobs}"
     make -C src install
+
+    mkdir -p "${dep_prefix}/include" "${dep_prefix}/lib/pkgconfig"
+    if [[ -f include/libssh2.h ]]; then
+      cp include/libssh2.h "${dep_prefix}/include/"
+    fi
+    if [[ -f include/libssh2_publickey.h ]]; then
+      cp include/libssh2_publickey.h "${dep_prefix}/include/"
+    fi
+
+    local libdir="${dep_prefix}/lib"
+    if [[ -f "${dep_prefix}/lib64/libssh2.a" ]]; then
+      libdir="${dep_prefix}/lib64"
+    fi
+
+    cat > "${dep_prefix}/lib/pkgconfig/libssh2.pc" <<PC
+prefix=${dep_prefix}
+exec_prefix=\${prefix}
+libdir=${libdir}
+includedir=\${prefix}/include
+
+Name: libssh2
+Description: libssh2 library
+Version: ${version}
+Libs: -L\${libdir} -lssh2
+Libs.private: -lz -lssl -lcrypto ${extra_libs}
+Cflags: -I\${includedir}
+PC
     popd >/dev/null
   }
 
