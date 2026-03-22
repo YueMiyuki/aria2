@@ -44,6 +44,10 @@ if [[ "${TARGET_OS}" == "darwin" ]]; then
 fi
 
 if [[ "${TARGET_OS}" == "win" ]]; then
+  # Official MinGW release binaries are expected to be self-contained.
+  # This makes configure inject libtool's static-link mode (-all-static)
+  # and avoids runtime dependency on libgcc/libstdc++ DLLs.
+  export ARIA2_STATIC=yes
   # Static OpenSSL/libssh2 on MinGW needs explicit Windows system libs.
   win_system_libs="-lws2_32 -lcrypt32 -lbcrypt -liphlpapi"
   export LIBS="${LIBS:-} ${win_system_libs}"
@@ -293,6 +297,13 @@ for dep in "LibCares" "Libssh2" "SQLite3" "LibExpat" "Zlib"; do
   fi
 done
 
+if [[ "${TARGET_OS}" == "win" ]]; then
+  grep -Eq "^Static build:[[:space:]]+yes" configure.out || {
+    echo "Expected static Windows build for ${TARGET_OS}-${TARGET_ARCH}" >&2
+    exit 1
+  }
+fi
+
 make -j"${jobs}"
 
 mkdir -p "${OUTPUT_DIR}"
@@ -327,6 +338,22 @@ cp "${src_binary}" "${output_binary}"
 strip_bin="${STRIP_BIN:-strip}"
 if command -v "${strip_bin}" >/dev/null 2>&1; then
   "${strip_bin}" "${output_binary}" || true
+fi
+
+if [[ "${TARGET_OS}" == "win" ]]; then
+  objdump_bin=""
+  if [[ -n "${HOST_TRIPLE:-}" ]] && command -v "${HOST_TRIPLE}-objdump" >/dev/null 2>&1; then
+    objdump_bin="${HOST_TRIPLE}-objdump"
+  elif command -v objdump >/dev/null 2>&1; then
+    objdump_bin="objdump"
+  fi
+
+  if [[ -n "${objdump_bin}" ]]; then
+    if "${objdump_bin}" -p "${output_binary}" | grep -Eqi 'DLL Name:[[:space:]]+lib(gcc|stdc\+\+)'; then
+      echo "Windows release binary still depends on MinGW runtime DLLs (libgcc/libstdc++)." >&2
+      exit 1
+    fi
+  fi
 fi
 
 if [[ "${TARGET_OS}" == "win" && "${TARGET_ARCH}" == "x64" && "${WIN_ARM64_ALIAS:-false}" == "true" ]]; then
