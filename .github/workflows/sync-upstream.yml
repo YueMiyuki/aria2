@@ -1,0 +1,98 @@
+name: sync-upstream
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Sync all upstream branches and tags (preserve fork .github)
+        env:
+          UPSTREAM_REPOSITORY: aria2/aria2
+        run: |
+          set -euo pipefail
+
+          upstream_url="https://github.com/${UPSTREAM_REPOSITORY}.git"
+          if git remote get-url upstream >/dev/null 2>&1; then
+            git remote set-url upstream "${upstream_url}"
+          else
+            git remote add upstream "${upstream_url}"
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Fetch all upstream branches/tags and current fork branches.
+          git fetch upstream --prune --tags "+refs/heads/*:refs/remotes/upstream/*"
+          git fetch origin --prune "+refs/heads/*:refs/remotes/origin/*"
+
+          # Fallback .github source for branches that don't exist in origin yet.
+          fallback_github_ref=""
+          for candidate in refs/remotes/origin/master refs/remotes/origin/main; do
+            if git show-ref --verify --quiet "${candidate}" && git cat-file -e "${candidate}:.github" 2>/dev/null; then
+              fallback_github_ref="${candidate}"
+              break
+            fi
+          done
+
+          # Sync every upstream branch using a synthetic commit on top of origin branch.
+          # This avoids pushing upstream workflow-history commits that GitHub App token cannot update.
+          while IFS= read -r up_ref; do
+            branch="${up_ref#refs/remotes/upstream/}"
+            origin_ref="refs/remotes/origin/${branch}"
+            work_branch="sync-${branch//\//-}"
+            echo "Syncing branch: ${branch}"
+
+            if git show-ref --verify --quiet "${origin_ref}"; then
+              git checkout -B "${work_branch}" "${origin_ref}"
+            else
+              git checkout --orphan "${work_branch}"
+              git reset --hard
+              git clean -fdx
+            fi
+
+            # Replace branch content with upstream snapshot.
+            git rm -r -f --ignore-unmatch . >/dev/null 2>&1 || true
+            git clean -fdx
+            git checkout "${up_ref}" -- .
+
+            # Keep fork .github state (workflows + scripts + actions metadata).
+            preserve_ref=""
+            if git show-ref --verify --quiet "${origin_ref}" && git cat-file -e "${origin_ref}:.github" 2>/dev/null; then
+              preserve_ref="${origin_ref}"
+            elif [[ -n "${fallback_github_ref}" ]]; then
+              preserve_ref="${fallback_github_ref}"
+            fi
+
+            if [[ -n "${preserve_ref}" ]]; then
+              rm -rf .github
+              git checkout "${preserve_ref}" -- .github
+            else
+              rm -rf .github
+            fi
+
+            git add -A
+            if ! git diff --cached --quiet; then
+              git commit -m "chore(sync): upstream ${branch} (preserve fork .github)"
+            else
+              echo "No content changes for ${branch}"
+            fi
+
+            git push origin "HEAD:refs/heads/${branch}" --force
+          done < <(git for-each-ref --format='%(refname)' refs/remotes/upstream | grep -v '^refs/remotes/upstream/HEAD$')
+
+          # Tags are mirrored from upstream.
+          git push origin --tags
+
+          echo "Synced all branches and tags from ${UPSTREAM_REPOSITORY} while preserving fork .github."
