@@ -1,0 +1,324 @@
+name: release-binaries
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - "release-*"
+  workflow_dispatch:
+    inputs:
+      release_mode:
+        description: "Release type for manual run"
+        required: true
+        default: prerelease
+        type: choice
+        options:
+          - prerelease
+          - release
+      release_tag:
+        description: "Optional release tag when release_mode=release (example: release-1.37.0)"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build-${{ matrix.target_os }}-${{ matrix.target_arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            target_os: linux
+            target_arch: x64
+            cc: gcc
+            cxx: g++
+            strip: strip
+            host: ""
+            apt_packages: "autoconf automake autotools-dev autopoint libtool pkg-config make bison gcc g++ libssl-dev libexpat1-dev zlib1g-dev libc-ares-dev libsqlite3-dev libssh2-1-dev"
+            win_arm64_alias: "false"
+          - runner: ubuntu-24.04
+            target_os: linux
+            target_arch: arm64
+            cc: aarch64-linux-gnu-gcc
+            cxx: aarch64-linux-gnu-g++
+            strip: aarch64-linux-gnu-strip
+            host: aarch64-linux-gnu
+            apt_packages: "autoconf automake autotools-dev autopoint libtool pkg-config make bison gcc-aarch64-linux-gnu g++-aarch64-linux-gnu perl ca-certificates curl"
+            win_arm64_alias: "false"
+          - runner: ubuntu-24.04
+            target_os: linux
+            target_arch: armv7l
+            cc: arm-linux-gnueabihf-gcc
+            cxx: arm-linux-gnueabihf-g++
+            strip: arm-linux-gnueabihf-strip
+            host: arm-linux-gnueabihf
+            apt_packages: "autoconf automake autotools-dev autopoint libtool pkg-config make bison gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf perl ca-certificates curl"
+            win_arm64_alias: "false"
+          - runner: ubuntu-24.04
+            target_os: win
+            target_arch: ia32
+            cc: i686-w64-mingw32-gcc
+            cxx: i686-w64-mingw32-g++
+            strip: i686-w64-mingw32-strip
+            host: i686-w64-mingw32
+            apt_packages: "autoconf automake autotools-dev autopoint libtool pkg-config make bison gcc-mingw-w64-i686 g++-mingw-w64-i686 perl ca-certificates curl"
+            win_arm64_alias: "false"
+          - runner: ubuntu-24.04
+            target_os: win
+            target_arch: x64
+            cc: x86_64-w64-mingw32-gcc
+            cxx: x86_64-w64-mingw32-g++
+            strip: x86_64-w64-mingw32-strip
+            host: x86_64-w64-mingw32
+            apt_packages: "autoconf automake autotools-dev autopoint libtool pkg-config make bison gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64 perl ca-certificates curl"
+            win_arm64_alias: "true"
+          - runner: macos-26-intel
+            target_os: darwin
+            target_arch: x64
+            cc: clang
+            cxx: clang++
+            strip: strip
+            host: ""
+            apt_packages: ""
+            win_arm64_alias: "false"
+          - runner: macos-26
+            target_os: darwin
+            target_arch: arm64
+            cc: clang
+            cxx: clang++
+            strip: strip
+            host: ""
+            apt_packages: ""
+            win_arm64_alias: "false"
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Restore cross dependency cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            .crossdeps-*
+            .crossdeps-build-*/*.tar.gz
+            .crossdeps-build-*/*.tar.xz
+            .crossdeps-build-*/*.tar.bz2
+          key: crossdeps-${{ matrix.target_os }}-${{ matrix.target_arch }}-${{ hashFiles('.github/scripts/build-release-binary.sh') }}
+          restore-keys: |
+            crossdeps-${{ matrix.target_os }}-${{ matrix.target_arch }}-
+
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ${{ matrix.apt_packages }}
+
+      - name: Install macOS build dependencies
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          brew update
+          brew install autoconf automake libtool pkg-config gettext expat zlib c-ares sqlite libssh2 openssl@3
+          echo "$(brew --prefix gettext)/bin" >> "${GITHUB_PATH}"
+          echo "PKG_CONFIG_PATH=$(brew --prefix openssl@3)/lib/pkgconfig:$(brew --prefix libssh2)/lib/pkgconfig:$(brew --prefix c-ares)/lib/pkgconfig:$(brew --prefix sqlite)/lib/pkgconfig:$(brew --prefix expat)/lib/pkgconfig:$(brew --prefix zlib)/lib/pkgconfig:${PKG_CONFIG_PATH:-}" >> "${GITHUB_ENV}"
+
+      - name: Build binary
+        env:
+          CC: ${{ matrix.cc }}
+          CXX: ${{ matrix.cxx }}
+          HOST_TRIPLE: ${{ matrix.host }}
+          TARGET_OS: ${{ matrix.target_os }}
+          TARGET_ARCH: ${{ matrix.target_arch }}
+          STRIP_BIN: ${{ matrix.strip }}
+          WIN_ARM64_ALIAS: ${{ matrix.win_arm64_alias }}
+          OUTPUT_DIR: ${{ github.workspace }}/dist
+        run: |
+          set -euo pipefail
+          chmod +x .github/scripts/build-release-binary.sh
+          .github/scripts/build-release-binary.sh
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ matrix.target_os }}-${{ matrix.target_arch }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    name: publish-release
+    runs-on: ubuntu-24.04
+    needs: build
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Prepare release metadata
+        id: meta
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_RELEASE_MODE: ${{ github.event.inputs.release_mode || '' }}
+          INPUT_RELEASE_TAG: ${{ github.event.inputs.release_tag || '' }}
+        run: |
+          set -euo pipefail
+
+          release_tag_on_sha=""
+          git fetch --tags --force origin
+          if git rev-parse --verify "${GITHUB_SHA}" >/dev/null 2>&1; then
+            release_tag_on_sha="$(git tag --points-at "${GITHUB_SHA}" | grep '^release-' | head -n1 || true)"
+          fi
+
+          if [[ "${REF_TYPE}" == "tag" && "${REF_NAME}" == release-* ]]; then
+            release_tag="${REF_NAME}"
+            release_name="${REF_NAME}"
+            prerelease="false"
+            make_latest="true"
+          elif [[ "${EVENT_NAME}" == "workflow_dispatch" && "${INPUT_RELEASE_MODE}" == "release" ]]; then
+            if [[ -n "${INPUT_RELEASE_TAG}" ]]; then
+              release_tag="${INPUT_RELEASE_TAG}"
+            else
+              release_tag="release-$(date -u +'%Y.%m.%d-%H%M%S')"
+            fi
+            release_name="${release_tag}"
+            prerelease="false"
+            make_latest="true"
+          elif [[ -n "${release_tag_on_sha}" ]]; then
+            release_tag="${release_tag_on_sha}"
+            release_name="${release_tag_on_sha}"
+            prerelease="false"
+            make_latest="true"
+          else
+            release_date="$(date -u +'%Y-%m-%d')"
+            release_tag="$(date -u +'%Y%m%d-%H%M%S')"
+            release_name="Release ${release_date}"
+            prerelease="false"
+            make_latest="true"
+          fi
+
+          echo "tag=${release_tag}" >> "${GITHUB_OUTPUT}"
+          echo "name=${release_name}" >> "${GITHUB_OUTPUT}"
+          echo "prerelease=${prerelease}" >> "${GITHUB_OUTPUT}"
+          echo "make_latest=${make_latest}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build update manifest
+        env:
+          RELEASE_TAG: ${{ steps.meta.outputs.tag }}
+          RELEASE_NAME: ${{ steps.meta.outputs.name }}
+          RELEASE_PRERELEASE: ${{ steps.meta.outputs.prerelease }}
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          if ! find release-assets -maxdepth 1 -type f | grep -q .; then
+            echo "No release artifacts were downloaded."
+            exit 1
+          fi
+          manifest_file="release-assets/latest.json"
+          repo_url="https://github.com/${GITHUB_REPOSITORY}"
+          published_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          tmp_assets="$(mktemp)"
+
+          shopt -s nullglob
+          for file in release-assets/*; do
+            base="$(basename "${file}")"
+            sha256="$(sha256sum "${file}" | awk '{print $1}')"
+            size="$(stat -c%s "${file}")"
+
+            platform_arch="${base%.exe}"
+            platform="${platform_arch%%-*}"
+            arch="${platform_arch#*-}"
+
+            jq -n \
+              --arg name "${base}" \
+              --arg platform "${platform}" \
+              --arg arch "${arch}" \
+              --arg sha256 "${sha256}" \
+              --argjson size "${size}" \
+              --arg url "${repo_url}/releases/download/${RELEASE_TAG}/${base}" \
+              '{name:$name,platform:$platform,arch:$arch,size:$size,sha256:$sha256,url:$url}' >> "${tmp_assets}"
+          done
+
+          jq -s \
+            --arg version "${RELEASE_TAG}" \
+            --arg name "${RELEASE_NAME}" \
+            --arg repository "${GITHUB_REPOSITORY}" \
+            --arg published_at "${published_at}" \
+            --argjson prerelease "${RELEASE_PRERELEASE}" \
+            '{
+              version: $version,
+              name: $name,
+              repository: $repository,
+              prerelease: $prerelease,
+              published_at: $published_at,
+              assets: .
+            }' "${tmp_assets}" > "${manifest_file}"
+
+          cp "${manifest_file}" release-assets/latest-${RELEASE_TAG}.json
+          echo "${RELEASE_TAG}" > release-assets/latest.txt
+
+      - name: List release assets
+        run: |
+          set -euo pipefail
+          find release-assets -maxdepth 1 -type f -print | sort
+
+      - name: Create GitHub release and upload binaries
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: ${{ steps.meta.outputs.name }}
+          prerelease: ${{ steps.meta.outputs.prerelease }}
+          make_latest: ${{ steps.meta.outputs.make_latest }}
+          target_commitish: ${{ github.sha }}
+          files: release-assets/*
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish autoupdate pointers
+        env:
+          RELEASE_TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          set -euo pipefail
+          branch="autoupdate"
+          tmp_dir="$(mktemp -d)"
+          cp release-assets/latest.json "${tmp_dir}/latest.json"
+          cp release-assets/latest.txt "${tmp_dir}/latest.txt"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git ls-remote --exit-code --heads origin "${branch}" >/dev/null 2>&1; then
+            git fetch origin "${branch}:${branch}"
+            git switch "${branch}"
+          else
+            git switch --orphan "${branch}"
+          fi
+
+          find . -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
+          cp "${tmp_dir}/latest.json" ./latest.json
+          cp "${tmp_dir}/latest.txt" ./latest.txt
+
+          git add latest.json latest.txt
+          if git diff --cached --quiet; then
+            echo "Autoupdate pointers already up to date."
+            exit 0
+          fi
+
+          git commit -m "chore: update autoupdate pointer ${RELEASE_TAG}"
+          git push origin "${branch}" --force
