@@ -30,12 +30,6 @@ jobs:
             git remote add upstream "${upstream_url}"
           fi
 
-          default_branch="$(git ls-remote --symref "${upstream_url}" HEAD | awk '/^ref:/ {sub("refs/heads/","",$2); print $2}')"
-          if [[ -z "${default_branch}" ]]; then
-            echo "Failed to detect upstream default branch."
-            exit 1
-          fi
-
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
@@ -43,20 +37,32 @@ jobs:
           git fetch upstream --prune --tags "+refs/heads/*:refs/remotes/upstream/*"
           git fetch origin --prune "+refs/heads/*:refs/remotes/origin/*"
 
-          # Sync every upstream branch while preserving fork workflow files.
+          # Sync every upstream branch using a synthetic commit on top of origin branch.
+          # This avoids pushing upstream workflow-history commits that GitHub App token cannot update.
           while IFS= read -r up_ref; do
             branch="${up_ref#refs/remotes/upstream/}"
+            origin_ref="refs/remotes/origin/${branch}"
+            work_branch="sync-${branch//\//-}"
             echo "Syncing branch: ${branch}"
 
-            git checkout --detach "${up_ref}"
+            if git show-ref --verify --quiet "${origin_ref}"; then
+              git checkout -B "${work_branch}" "${origin_ref}"
+            else
+              git checkout --orphan "${work_branch}"
+              git reset --hard
+              git clean -fdx
+            fi
+
+            # Replace branch content with upstream snapshot.
+            git rm -r -f --ignore-unmatch . >/dev/null 2>&1 || true
+            git clean -fdx
+            git checkout "${up_ref}" -- .
 
             # Keep fork workflow state for existing branch; otherwise omit workflows.
-            if git show-ref --verify --quiet "refs/remotes/origin/${branch}"; then
-              if git cat-file -e "refs/remotes/origin/${branch}:.github/workflows" 2>/dev/null; then
-                git checkout "refs/remotes/origin/${branch}" -- .github/workflows
-              else
-                rm -rf .github/workflows
-              fi
+            if git show-ref --verify --quiet "${origin_ref}" && \
+               git cat-file -e "${origin_ref}:.github/workflows" 2>/dev/null; then
+              rm -rf .github/workflows
+              git checkout "${origin_ref}" -- .github/workflows
             else
               rm -rf .github/workflows
             fi
@@ -64,6 +70,8 @@ jobs:
             git add -A
             if ! git diff --cached --quiet; then
               git commit -m "chore(sync): upstream ${branch} (preserve fork workflows)"
+            else
+              echo "No content changes for ${branch}"
             fi
 
             git push origin "HEAD:refs/heads/${branch}" --force
