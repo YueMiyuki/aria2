@@ -1,0 +1,23 @@
+.github/scripts/build-release-binary.sh
+  b6a3facfe008925b 301-302,304-305
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "29485389277a37490c0a25663f9d38a8d8f141ea",
+  "prompts": {
+    "b6a3facfe008925b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cf986-aec0-7a00-8aa4-b5462e1196d3",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": "YueMiyuki <76854136+YueMiyuki@users.noreply.github.com>",
+      "messages": [],
+      "total_additions": 13,
+      "total_deletions": 12,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    }
+  }
+}
