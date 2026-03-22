@@ -298,10 +298,11 @@ make -j"${jobs}"
 mkdir -p "${OUTPUT_DIR}"
 
 if [[ "${TARGET_OS}" == "win" ]]; then
-  if [[ -f "src/aria2c.exe" ]]; then
-    src_binary="src/aria2c.exe"
-  elif [[ -f "src/.libs/aria2c.exe" ]]; then
+  # Prefer the real built executable; src/aria2c.exe can be a tiny libtool wrapper.
+  if [[ -f "src/.libs/aria2c.exe" ]]; then
     src_binary="src/.libs/aria2c.exe"
+  elif [[ -f "src/aria2c.exe" ]]; then
+    src_binary="src/aria2c.exe"
   else
     echo "aria2c.exe not found after build" >&2
     ls -la src src/.libs 2>/dev/null || true
