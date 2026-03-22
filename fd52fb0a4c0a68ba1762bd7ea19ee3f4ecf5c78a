@@ -1,0 +1,23 @@
+.github/workflows/sync-upstream.yml
+  b6a3facfe008925b 20,40-48,70-76,78-80,82,87,98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "fd52fb0a4c0a68ba1762bd7ea19ee3f4ecf5c78a",
+  "prompts": {
+    "b6a3facfe008925b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cf986-aec0-7a00-8aa4-b5462e1196d3",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": "YueMiyuki <76854136+YueMiyuki@users.noreply.github.com>",
+      "messages": [],
+      "total_additions": 24,
+      "total_deletions": 9,
+      "accepted_lines": 24,
+      "overriden_lines": 0
+    }
+  }
+}
