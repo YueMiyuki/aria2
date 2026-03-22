@@ -1,0 +1,98 @@
+aria2 1.26.1
+============
+
+Release Note
+------------
+
+This release fixes the bug that causes assertion failure during
+BitTorrent downloads.
+
+Changes
+-------
+
+* Make assertion hold
+
+  If we have peer which is already used, make addAndCheckoutPeer()
+  fail.  If peer is in unused list, first remove the old entry, and
+  then add new one.  This would make assertion in ~DefaultPeerStorage
+  hold.
+
+
+
+aria2 1.26.0
+============
+
+Release Note
+------------
+
+This release fixes linking bug with libaria2 enabled.  It also changes
+how aria2 renames the download file name when the same name already
+exists in file system.  In summary, we use numbers before extension
+(e.g., foo.1.txt), rather than after extension (e.g., foo.txt.1).  Now
+--seed-time option can take floating point number to specify
+fractional minutes.
+
+Changes
+-------
+
+* aria2mon: Replace client.call with local method
+
+  Patch from Florian Gamböck
+
+* Reorder a note section in aria2c.rst
+
+  Patch from Artur Petrov
+
+  Closes GH-722
+
+* bash_completion: Add missing options which takes one of pre-defined
+  values
+
+* Replace "/" with "-" in magnet dn name when used as in-memory
+  download name
+
+* Fix Dockerfile.raspberrypi to correctly decompress expat archive
+
+  Patch from Char
+
+* Enable ccache in travis-ci
+
+  Speeds up the build most of the time.
+
+  Closes GH-710
+
+* Enable OSX/macOS build for travis
+
+  Closes GH-711
+  Closes GH-666
+
+* Better auto-renaming
+
+  Up until now aria2 file auto renaming worked by just appending a new
+  unique number to the file path, behind the file name extension, if
+  any, changing what most other programs consider the file extension
+  in the process.  Now, aria2 will attempt to insert the number before
+  the file extension, leaving the extension intact, so that e.g. a
+  ".jpg" still is a ".jpg" file and opens in your configured image
+  viewer when clicking it.  If a file has no extension (incl. so
+  called "dot files"), the number will be appended to the file name as
+  usual.
+
+  Note: This is a potentially breaking change that might break third
+  party scripts that rely on aria2 auto file renaming producing a
+  certain format for renamed files. Please fix your scripts
+  accordingly.
+
+  Closes GH-709
+
+* Log number of items loaded from input file
+
+* Link external libraries to libaria2 with --enable-libaria2
+
+  Fixes GH-707
+
+* Allow seconds for seed-time (fractional minutes)
+
+  Patch from Sébastien Cabaniols
+
+  Closes GH-704

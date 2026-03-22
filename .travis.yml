@@ -1,0 +1,48 @@
+language: cpp
+cache: ccache
+matrix:
+  include:
+    - os: linux
+      compiler: gcc
+    - os: linux
+      compiler: clang
+    - os: osx
+      osx_image: xcode7
+      compiler: clang
+sudo: false
+addons:
+  apt:
+    sources:
+    - ubuntu-toolchain-r-test
+    packages:
+    - g++-4.9
+    - libstdc++-4.9-dev
+    - autoconf
+    - automake
+    - autotools-dev
+    - autopoint
+    - libtool
+    - pkg-config
+    - libssl-dev
+    - libc-ares-dev
+    - libxml2-dev
+    - zlib1g-dev
+    - libsqlite3-dev
+    - libssh2-1-dev
+    - libcppunit-dev
+before_install:
+  - $CC --version
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update ; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install --force cppunit gettext openssl gnutls libgcrypt gmp nettle libssh2 c-ares sqlite3 ccache ; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew link --force cppunit gettext openssl gnutls libgcrypt gmp nettle libssh2 c-ares sqlite3 ccache ; fi
+  - if [ "$CXX" = "g++" ]; then export CXX="g++-4.9" CC="gcc-4.9"; fi
+  - if [ "$CXX" = "clang++" ]; then export CXX="$CXX -Qunused-arguments" CC="$CC -Qunused-arguments"; fi
+  - $CC --version
+before_script:
+  - autoreconf -i
+  - automake
+  - autoconf
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then ./configure --without-openssl --without-gnutls --with-appletls --disable-nls ; fi
+  - if [[ "$TRAVIS_OS_NAME" != "osx" ]]; then ./configure ; fi
+script:
+  - make CC="ccache $CC" CXX="ccache $CXX" check
