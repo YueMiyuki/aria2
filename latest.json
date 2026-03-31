@@ -1,73 +1,73 @@
 {
-  "version": "20260322-103439",
-  "name": "Release 2026-03-22",
+  "version": "20260331-041038",
+  "name": "Release 2026-03-31",
   "repository": "YueMiyuki/aria2",
   "prerelease": false,
-  "published_at": "2026-03-22T10:34:39Z",
+  "published_at": "2026-03-31T04:10:38Z",
   "assets": [
     {
       "name": "darwin-arm64",
       "platform": "darwin",
       "arch": "arm64",
       "size": 8047072,
-      "sha256": "a81d94e53e191c2d5d0d8a5c2b78141c97cac6c01d91c7d8f2f32a3efe126449",
-      "url": "https://github.com/YueMiyuki/aria2/releases/download/20260322-103439/darwin-arm64"
+      "sha256": "08b1618bce805de7f318a4676692989441d95789a60c15042be03f0955859081",
+      "url": "https://github.com/YueMiyuki/aria2/releases/download/20260331-041038/darwin-arm64"
     },
     {
       "name": "darwin-x64",
       "platform": "darwin",
       "arch": "x64",
       "size": 8778528,
-      "sha256": "4e21e1a4973a424a473db26fd52e2701f355d41007761ac255d1d4303ad7b3a0",
-      "url": "https://github.com/YueMiyuki/aria2/releases/download/20260322-103439/darwin-x64"
+      "sha256": "7b7b19c408a03140fcb6a11466032d6b1758aa81e14cf2f46f8afaf5fc16dea9",
+      "url": "https://github.com/YueMiyuki/aria2/releases/download/20260331-041038/darwin-x64"
     },
     {
       "name": "linux-arm64",
       "platform": "linux",
       "arch": "arm64",
       "size": 9936864,
-      "sha256": "39665c15ca190910abb79bfd9a6ed2498f04e38a53ed7aa393fc697c6d2b5f6d",
-      "url": "https://github.com/YueMiyuki/aria2/releases/download/20260322-103439/linux-arm64"
+      "sha256": "f1b3bb5e7f29d18c524915b6e07aa6f962e288e129b810523d3dd5b01f839444",
+      "url": "https://github.com/YueMiyuki/aria2/releases/download/20260331-041038/linux-arm64"
     },
     {
       "name": "linux-armv7l",
       "platform": "linux",
       "arch": "armv7l",
-      "size": 5649820,
-      "sha256": "b4ce8f157ce3a20376d46c6ac9c360d4e8b06fb89e8ff7b9559d0d567eda4d2d",
-      "url": "https://github.com/YueMiyuki/aria2/releases/download/20260322-103439/linux-armv7l"
+      "size": 5649824,
+      "sha256": "c95a8521160d4cfaf9c9d5815dde6a8e0e3b5da749bc9d867120457addbf34fe",
+      "url": "https://github.com/YueMiyuki/aria2/releases/download/20260331-041038/linux-armv7l"
     },
     {
       "name": "linux-x64",
       "platform": "linux",
       "arch": "x64",
       "size": 10627808,
-      "sha256": "c2563fed1a745ab6f73c7bdde57f324017ce0f405e4cf46d0a246889db0c4a80",
-      "url": "https://github.com/YueMiyuki/aria2/releases/download/20260322-103439/linux-x64"
+      "sha256": "735857b3e307e7b15de428c2e53779322b269e451ca525272bf9fd56faf9cea5",
+      "url": "https://github.com/YueMiyuki/aria2/releases/download/20260331-041038/linux-x64"
     },
     {
       "name": "win-arm64.exe",
       "platform": "win",
       "arch": "arm64",
       "size": 10464768,
-      "sha256": "3c827836f9109fc4e8bf7e3bb9253c567b5bb540d50c5cbaa1f19317c0a343e7",
-      "url": "https://github.com/YueMiyuki/aria2/releases/download/20260322-103439/win-arm64.exe"
+      "sha256": "5cd96869a28f7735579faded5ef0135e2bb56da0ab1e6638be7e83f155c7baca",
+      "url": "https://github.com/YueMiyuki/aria2/releases/download/20260331-041038/win-arm64.exe"
     },
     {
       "name": "win-ia32.exe",
       "platform": "win",
       "arch": "ia32",
       "size": 10306062,
-      "sha256": "e7d294262bc86100505adb25d86106b9a4421f2e225717690d441ba06edab9db",
-      "url": "https://github.com/YueMiyuki/aria2/releases/download/20260322-103439/win-ia32.exe"
+      "sha256": "7d0351cc410ef687eb3c28ff246cc37f4f701f88e3e2682be62f50eb82972463",
+      "url": "https://github.com/YueMiyuki/aria2/releases/download/20260331-041038/win-ia32.exe"
     },
     {
       "name": "win-x64.exe",
       "platform": "win",
       "arch": "x64",
       "size": 10464768,
-      "sha256": "3c827836f9109fc4e8bf7e3bb9253c567b5bb540d50c5cbaa1f19317c0a343e7",
-      "url": "https://github.com/YueMiyuki/aria2/releases/download/20260322-103439/win-x64.exe"
+      "sha256": "5cd96869a28f7735579faded5ef0135e2bb56da0ab1e6638be7e83f155c7baca",
+      "url": "https://github.com/YueMiyuki/aria2/releases/download/20260331-041038/win-x64.exe"
     }
   ]
 }
